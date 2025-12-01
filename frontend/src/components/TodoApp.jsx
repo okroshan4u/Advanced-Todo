@@ -15,9 +15,16 @@ export default function TodoApp({ user }) {
     const [searchTerm, setSearchTerm] = useState("");
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
+    const [reminder, setReminder] = useState('');
 
     useEffect(() => {
         fetchTodos();
+    }, []);
+
+    useEffect(() => {
+        if (Notification.permission !== "granted") {
+            Notification.requestPermission();
+        }
     }, []);
 
     const fetchTodos = async () => {
@@ -52,6 +59,7 @@ export default function TodoApp({ user }) {
             category,
             priority,
             dueDate: dueDate || null,
+            reminder: reminder || null,
             completed: false,
         };
 
@@ -140,6 +148,7 @@ export default function TodoApp({ user }) {
             category,
             priority,
             dueDate: dueDate || null,
+            reminder: reminder || null,
         });
 
         resetForm();
@@ -155,9 +164,11 @@ export default function TodoApp({ user }) {
     };
 
     const filteredTodos = todos.filter((todo) => {
+
         const matchesSearch =
-            todo.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            todo.description.toLowerCase().includes(searchTerm.toLowerCase());
+            (todo.title || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
+            (todo.description || "").toLowerCase().includes(searchTerm.toLowerCase());
+
 
         if (!matchesSearch) return false;
 
@@ -186,11 +197,62 @@ export default function TodoApp({ user }) {
         return colors[cat] || colors.personal;
     };
 
+    const isReminderDue = (todo) => {
+        if (!todo.reminder) return false;
+        return new Date(todo.reminder) <= new Date() && !todo.completed;
+    };
     const stats = {
         total: todos.length,
         active: todos.filter((t) => !t.completed).length,
         completed: todos.filter((t) => t.completed).length,
     };
+
+
+    const addSubtask = async (todoId, text) => {
+        try {
+            const response = await fetch(`${API_URL}/todos/${todoId}/subtasks`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": localStorage.getItem("token")
+                },
+                body: JSON.stringify({ text })
+            });
+
+            const updated = await response.json();
+            setTodos(todos.map(t => t._id === todoId ? updated : t));
+        } catch (err) {
+            console.error("Add subtask error", err);
+        }
+    };
+
+    const toggleSubtask = async (todoId, subId) => {
+        const response = await fetch(`${API_URL}/todos/${todoId}/subtasks/${subId}`, {
+            method: "PUT",
+            headers: {
+                "Authorization": localStorage.getItem("token")
+            }
+        });
+
+        const updated = await response.json();
+        setTodos(todos.map(t => t._id === todoId ? updated : t));
+    };
+
+    const deleteSubtask = async (todoId, subId) => {
+        const response = await fetch(`${API_URL}/todos/${todoId}/subtasks/${subId}`, {
+            method: "DELETE",
+            headers: {
+                "Authorization": localStorage.getItem("token")
+            }
+        });
+
+        const updated = await response.json();
+        setTodos(todos.map(t => t._id === todoId ? updated : t));
+    };
+
+
+
+
 
     return (
         <div
@@ -216,12 +278,8 @@ export default function TodoApp({ user }) {
                             localStorage.setItem("theme", "dark");
                         }
                     }}
-                    className="absolute top-4 right-28 bg-gray-700 text-white px-4 py-2 rounded-lg 
-             dark:bg-gray-200 dark:text-black"
-                >
-                    Toggle Theme
+                    className="absolute top-4 right-28 bg-gray-700 text-white px-4 py-2 rounded-lg dark:bg-gray-200 dark:text-black">Toggle Theme
                 </button>
-
 
 
                 {/* Logout Button */}
@@ -231,9 +289,7 @@ export default function TodoApp({ user }) {
                         localStorage.removeItem("user");
                         window.location.reload();
                     }}
-                    className="absolute top-4 right-4 bg-red-500 text-white px-4 py-2 rounded-lg shadow hover:bg-red-600"
-                >
-                    Logout
+                    className="absolute top-4 right-4 bg-red-500 text-white px-4 py-2 rounded-lg shadow hover:bg-red-600"> Logout
                 </button>
 
                 {/* Header */}
@@ -355,6 +411,16 @@ export default function TodoApp({ user }) {
                     text-gray-800 dark:text-white
                   "
                                 />
+                                <input
+                                    type="datetime-local"
+                                    value={reminder}
+                                    onChange={(e) => setReminder(e.target.value)}
+                                    className="w-full px-4 py-3 mb-6 border border-gray-300 rounded-lg 
+    focus:outline-none focus:ring-2 focus:ring-indigo-500
+    dark:bg-gray-800 dark:border-gray-600 dark:text-white"
+                                    placeholder="Set reminder"
+                                />
+
 
                                 <div className="flex gap-2">
                                     <button
@@ -443,13 +509,7 @@ export default function TodoApp({ user }) {
                                 </div>
                             ) : (
                                 filteredTodos.map((todo) => (
-                                    <div
-                                        key={todo._id}
-                                        className={`
-                      bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-md 
-                      hover:shadow-lg transition-all
-                      ${todo.completed ? "opacity-60" : ""}
-                    `}
+                                    <div key={todo._id} className={` bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-md  hover:shadow-lg transition-all ${todo.completed ? "opacity-60" : ""} `}
                                     >
                                         <div className="flex items-start gap-4">
                                             <button
@@ -467,38 +527,22 @@ export default function TodoApp({ user }) {
                                             </button>
 
                                             <div className="flex-1">
-                                                <h3
-                                                    className={`
-                            text-xl font-semibold mb-2
-                            ${todo.completed
-                                                            ? "line-through text-gray-500 dark:text-gray-400"
-                                                            : "text-gray-900 dark:text-white"}
-                          `}
-                                                >
+                                                <h3 className={` text-xl font-semibold mb-2 ${todo.completed ? "line-through text-gray-500 dark:text-gray-400" : "text-gray-900 dark:text-white"} `} >
                                                     {todo.title}
                                                 </h3>
 
-                                                {todo.description && (
-                                                    <p className="text-gray-600 dark:text-gray-300 mb-3">
-                                                        {todo.description}
-                                                    </p>
+                                                {todo.description && (<p className="text-gray-600 dark:text-gray-300 mb-3">{todo.description} </p>
                                                 )}
 
                                                 <div className="flex flex-wrap gap-2 items-center">
                                                     <span
-                                                        className={`
-                              px-3 py-1 rounded-full text-xs font-medium
-                              ${getCategoryColor(todo.category)}
-                            `}
+                                                        className={` px-3 py-1 rounded-full text-xs font-medium ${getCategoryColor(todo.category)} `}
                                                     >
                                                         {todo.category}
                                                     </span>
 
                                                     <span
-                                                        className={`
-                              px-3 py-1 rounded-full text-xs font-medium
-                              ${getPriorityColor(todo.priority)}
-                            `}
+                                                        className={` px-3 py-1 rounded-full text-xs font-medium  ${getPriorityColor(todo.priority)} `}
                                                     >
                                                         {todo.priority} priority
                                                     </span>
@@ -509,7 +553,80 @@ export default function TodoApp({ user }) {
                                                             {new Date(todo.dueDate).toLocaleDateString()}
                                                         </span>
                                                     )}
+                                                    {todo.reminder && (
+                                                        <span className="flex items-center gap-1 text-xs text-red-500 font-medium">
+                                                            ⏰ {new Date(todo.reminder).toLocaleString()}
+                                                        </span>
+                                                    )}
+
+                                                    {todo.reminder && (
+                                                        <span className="flex items-center gap-1 text-xs text-red-500 font-medium">
+                                                            ⏰ {new Date(todo.reminder).toLocaleString()}
+                                                        </span>
+                                                    )}
+
+                                                    {/* ⭐ OVERDUE ALERT BADGE (uses isReminderDue) ⭐ */}
+                                                    {isReminderDue(todo) && (
+                                                        <span className="px-2 py-1 text-xs rounded bg-red-600 text-white">
+                                                            Reminder Due!
+                                                        </span>
+                                                    )}
+
                                                 </div>
+
+                                                {/* SUBTASK LIST */}
+                                                <div className="ml-6 mt-4 space-y-2">
+
+                                                    {todo.subtasks?.map(st => (
+                                                        <div key={st._id} className="flex items-center gap-2">
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={st.completed}
+                                                                onChange={() => toggleSubtask(todo._id, st._id)}
+                                                            />
+                                                            <span className={`${st.completed ? "line-through text-gray-500" : ""}`}>
+                                                                {st.text}
+                                                            </span>
+                                                            <button
+                                                                onClick={() => deleteSubtask(todo._id, st._id)}
+                                                                className="text-red-500 text-xs"
+                                                            >
+                                                                delete
+                                                            </button>
+                                                        </div>
+                                                    ))}
+
+                                                    {/* ADD SUBTASK */}
+                                                    <div className="flex items-center gap-2 mt-3">
+                                                        <input
+                                                            type="text"
+                                                            placeholder="Add subtask..."
+                                                            className="flex-1 px-3 py-2 border rounded"
+                                                            onKeyDown={(e) => {
+                                                                if (e.key === "Enter" && e.target.value.trim()) {
+                                                                    addSubtask(todo._id, e.target.value.trim());
+                                                                    e.target.value = "";
+                                                                }
+                                                            }}
+                                                        />
+                                                        <button
+                                                            onClick={(e) => {
+                                                                const input = e.target.previousSibling;
+                                                                if (input.value.trim()) {
+                                                                    addSubtask(todo._id, input.value.trim());
+                                                                    input.value = "";
+                                                                }
+                                                            }}
+                                                            className="px-3 py-2 bg-indigo-600 text-white rounded"
+                                                        >
+                                                            Add
+                                                        </button>
+                                                    </div>
+
+                                                </div>
+
+
+
                                             </div>
 
                                             <div className="flex gap-2">
