@@ -186,6 +186,7 @@ export default function TodoApp({ user }) {
         };
         return colors[priority] || colors.medium;
     };
+    
 
     const getCategoryColor = (cat) => {
         const colors = {
