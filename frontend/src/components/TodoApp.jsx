@@ -303,7 +303,7 @@ export default function TodoApp({ user }) {
                     </p>
                 </div>
 
-                {/* Error */}
+     
                 {error && (
                     <div className="mb-6 p-4 bg-red-100 dark:bg-red-900 border border-red-200 dark:border-red-700 rounded-lg text-red-700 dark:text-red-300">
                         {error}
