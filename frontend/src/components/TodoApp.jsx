@@ -186,7 +186,7 @@ export default function TodoApp({ user }) {
         };
         return colors[priority] || colors.medium;
     };
-    
+
 
     const getCategoryColor = (cat) => {
         const colors = {
@@ -283,7 +283,7 @@ export default function TodoApp({ user }) {
                 </button>
 
 
-                {/* Logout Button */}
+        
                 <button
                     onClick={() => {
                         localStorage.removeItem("token");
