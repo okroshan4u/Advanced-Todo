@@ -16,7 +16,7 @@ useEffect(() => {
 }, []);
 
 
-// useeffect for
+// useeffect for local storage
 
   useEffect(() => {
     const saved = localStorage.getItem("user");
